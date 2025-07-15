@@ -180,7 +180,6 @@ sudo ./install.sh
 
 * Example alert for high CPU in `prometheus/rules.yml`
 
-```
 ---
 ## 👨‍💻 Author
 
