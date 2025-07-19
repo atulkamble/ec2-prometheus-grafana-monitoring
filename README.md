@@ -77,17 +77,34 @@ A shell script to install **Prometheus**, **Node Exporter**, and **Grafana** on 
 ```bash
 #!/bin/bash
 
+# Exit on any error
+set -e
+
+# Ensure the script is run as root
+if [ "$EUID" -ne 0 ]; then
+  echo "❌ Please run as root or use sudo"
+  exit 1
+fi
+
+# Variables
+PROM_VERSION="2.52.0"
+NODE_EXPORTER_VERSION="1.8.0"
+GRAFANA_RPM="https://dl.grafana.com/enterprise/release/grafana-enterprise-12.0.2-1.x86_64.rpm"
+
 # Install Prometheus
 useradd --no-create-home --shell /bin/false prometheus
-mkdir /etc/prometheus /var/lib/prometheus
-wget https://github.com/prometheus/prometheus/releases/download/v2.52.0/prometheus-2.52.0.linux-amd64.tar.gz
-tar -xvf prometheus-2.52.0.linux-amd64.tar.gz
-cp prometheus-2.52.0.linux-amd64/prometheus /usr/local/bin/
-cp prometheus-2.52.0.linux-amd64/promtool /usr/local/bin/
-cp -r prometheus-2.52.0.linux-amd64/consoles /etc/prometheus
-cp -r prometheus-2.52.0.linux-amd64/console_libraries /etc/prometheus
-cp prometheus/prometheus.yml /etc/prometheus/
-cp prometheus/rules.yml /etc/prometheus/
+mkdir -p /etc/prometheus /var/lib/prometheus
+
+wget https://github.com/prometheus/prometheus/releases/download/v$PROM_VERSION/prometheus-$PROM_VERSION.linux-amd64.tar.gz
+tar -xvf prometheus-$PROM_VERSION.linux-amd64.tar.gz
+
+cp prometheus-$PROM_VERSION.linux-amd64/prometheus /usr/local/bin/
+cp prometheus-$PROM_VERSION.linux-amd64/promtool /usr/local/bin/
+cp -r prometheus-$PROM_VERSION.linux-amd64/consoles /etc/prometheus
+cp -r prometheus-$PROM_VERSION.linux-amd64/console_libraries /etc/prometheus
+cp prometheus-$PROM_VERSION.linux-amd64/prometheus.yml /etc/prometheus/
+# Optional: touch a basic rules.yml if missing
+touch /etc/prometheus/rules.yml
 
 # Create Prometheus systemd service
 cat <<EOF > /etc/systemd/system/prometheus.service
@@ -107,17 +124,19 @@ ExecStart=/usr/local/bin/prometheus \\
 WantedBy=multi-user.target
 EOF
 
+# Start Prometheus
 systemctl daemon-reload
-systemctl start prometheus
-systemctl enable prometheus
+systemctl enable --now prometheus
 
 # Install Node Exporter
 useradd --no-create-home --shell /bin/false node_exporter
-wget https://github.com/prometheus/node_exporter/releases/download/v1.8.0/node_exporter-1.8.0.linux-amd64.tar.gz
-tar -xvf node_exporter-1.8.0.linux-amd64.tar.gz
-cp node_exporter-1.8.0.linux-amd64/node_exporter /usr/local/bin/
 
-# Create Node Exporter systemd service
+wget https://github.com/prometheus/node_exporter/releases/download/v$NODE_EXPORTER_VERSION/node_exporter-$NODE_EXPORTER_VERSION.linux-amd64.tar.gz
+tar -xvf node_exporter-$NODE_EXPORTER_VERSION.linux-amd64.tar.gz
+
+cp node_exporter-$NODE_EXPORTER_VERSION.linux-amd64/node_exporter /usr/local/bin/
+
+# Create Node Exporter service
 cat <<EOF > /etc/systemd/system/node_exporter.service
 [Unit]
 Description=Node Exporter
@@ -131,14 +150,18 @@ ExecStart=/usr/local/bin/node_exporter
 WantedBy=multi-user.target
 EOF
 
+# Start Node Exporter
 systemctl daemon-reload
-systemctl start node_exporter
-systemctl enable node_exporter
+systemctl enable --now node_exporter
 
 # Install Grafana
-sudo yum install -y https://dl.grafana.com/enterprise/release/grafana-enterprise-12.0.2-1.x86_64.rpm
-sudo systemctl start grafana-server
-sudo systemctl enable grafana-server
+yum install -y $GRAFANA_RPM
+
+systemctl daemon-reload
+systemctl enable --now grafana-server
+
+echo -e "\n✅ Installation complete! Access Grafana at http://<your-ec2-public-ip>:3000 (default login: admin/admin)"
+
 ```
 
 ---
